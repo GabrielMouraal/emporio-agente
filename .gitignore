@@ -1,0 +1,15 @@
+# Ambiente / Environment
+.venv/
+venv/
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Histórico local de conversas / Local chat history
+.sessions/
+
+# IDE
+.idea/
+.vscode/
