@@ -136,3 +136,15 @@ def test_o_que_ainda_vale_muda_com_o_tempo():
     assert any("garantia legal" in o for o in opcoes(2026, 2, 1, 10, 0))
     tarde = opcoes(2026, 11, 2, 10, 0)
     assert len(tarde) == 1 and "fabricante" in tarde[0]
+
+
+def test_modelo_sem_estoque_ja_traz_alternativas(ferramentas):
+    r = chamar(ferramentas, "buscar_produtos", termo="Giannini GF-3D")
+    assert r["total_disponiveis"] == 0
+    assert r["alternativas"] and all(a["disponivel"] and a["categoria"] == "Violões" for a in r["alternativas"])
+
+
+def test_busca_por_tipo_de_corda(ferramentas):
+    r = chamar(ferramentas, "buscar_produtos", termo="nylon", categoria="violões", preco_max=1000)
+    assert r["total_disponiveis"] == 5
+    assert all("Nylon" in p["nome"] for p in r["produtos"])

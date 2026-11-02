@@ -95,3 +95,9 @@ def test_historico_aparado_comeca_em_mensagem_do_cliente(ferramentas):
 
     assert agente.historico[0]["role"] == "user"
     assert sum(m["role"] == "user" for m in agente.historico) == MAX_TURNOS_HISTORICO
+
+
+def test_limpar_markdown():
+    from emporio.agent import limpar_markdown
+
+    assert limpar_markdown("## Opções\n1. **Yamaha C40**: R$ 599,90") == "Opções\n1. Yamaha C40: R$ 599,90"

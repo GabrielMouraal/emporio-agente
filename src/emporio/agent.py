@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable
@@ -99,7 +100,7 @@ class Agente:
                 msg = retorno.choices[0].message
 
                 if not msg.tool_calls:
-                    texto = msg.content or ""
+                    texto = limpar_markdown(msg.content or "")
                     self.historico.append({"role": "assistant", "content": texto})
                     return Resposta(texto, chamadas)
 
@@ -127,6 +128,14 @@ class Agente:
         while self.historico:
             if self.historico.pop()["role"] == "user":
                 break
+
+
+def limpar_markdown(texto: str) -> str:
+    """Remove negrito e títulos em Markdown. O prompt já pede texto simples, mas o
+    modelo às vezes escapa; num canal de mensagem os símbolos aparecem crus.
+    Strips Markdown bold and headings; the model sometimes ignores the prompt."""
+    texto = texto.replace("**", "")
+    return re.sub(r"^#{1,6}\s+", "", texto, flags=re.MULTILINE)
 
 
 def _json_ou_vazio(texto: str) -> dict[str, Any]:

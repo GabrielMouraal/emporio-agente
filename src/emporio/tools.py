@@ -151,7 +151,7 @@ class Ferramentas:
         disponiveis = [p for p in encontrados if p.disponivel]
         indisponiveis = [p for p in encontrados if not p.disponivel]
         listados = disponiveis[:LIMITE_RESULTADOS]
-        return {
+        resultado = {
             "total_disponiveis": len(disponiveis),
             "listados": len(listados),
             # Campo explícito: no primeiro teste real o modelo ignorou que havia mais opções.
@@ -164,6 +164,12 @@ class Ferramentas:
                 {"id": p.id, "nome": p.nome, "situacao": self._situacao(p)} for p in indisponiveis[:LIMITE_RESULTADOS]
             ],
         }
+        # Cliente pediu um modelo que não está à venda: já manda as alternativas.
+        # No teste real o modelo só dizia "sem estoque" e parava ali.
+        # Asked for a model that isn't for sale: send alternatives right away.
+        if not disponiveis and indisponiveis:
+            resultado["alternativas"] = self._alternativas(indisponiveis[0])
+        return resultado
 
     @staticmethod
     def _situacao(produto: Produto) -> str:
@@ -184,7 +190,7 @@ class Ferramentas:
     def detalhes_produto(self, produto_id: int) -> dict:
         produto = self.loja.produtos.get(int(produto_id))
         if produto is None:
-            return {"erro": f"produto {produto_id} não encontrado"}
+            return {"erro": f"produto {produto_id} não encontrado; use um id devolvido por buscar_produtos"}
 
         detalhes = self._resumo(produto) | {
             "descricao": produto.descricao,
@@ -358,7 +364,12 @@ def schemas() -> list[dict]:
                 ),
                 "parameters": {
                     "type": "object",
-                    "properties": {"produto_id": {"type": "integer"}},
+                    "properties": {
+                        "produto_id": {
+                            "type": "integer",
+                            "description": "Campo 'id' de um produto devolvido por buscar_produtos. Não é o preço.",
+                        }
+                    },
                     "required": ["produto_id"],
                     "additionalProperties": False,
                 },
