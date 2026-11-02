@@ -6,6 +6,9 @@ requires-python = ">=3.10"
 dependencies = [
     "openai>=1.40",
     "python-dotenv>=1.0",
+    # Windows não traz a base de fusos horários; o zoneinfo precisa deste pacote.
+    # Windows ships no timezone database; zoneinfo needs this package there.
+    "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]
