@@ -60,3 +60,8 @@ def test_categoria_aceita_singular_e_plural(loja, termo, esperado):
 
 def test_categoria_inexistente(loja):
     assert loja.categoria_por_nome("pedal") is None
+
+
+def test_auditoria_pega_parcela_abaixo_do_minimo(loja):
+    avisos = " ".join(loja.auditar())
+    assert "Pedido 9: 6x" in avisos and "Pedido 16: 6x" in avisos

@@ -265,6 +265,16 @@ class Loja:
                     avisos.append(f"Pedido {pedido.id}: produto {item.produto_id} não existe no catálogo")
                 elif produto.status == "coming_soon" and pedido.status == "delivered":
                     avisos.append(f"Pedido {pedido.id}: entregue com produto em pré-lançamento ({produto.nome})")
+            if pedido.forma_pagamento.startswith("credit_"):
+                # Import local: pricing já importa este módulo. / Local import: pricing imports this module.
+                from emporio.pricing import dinheiro, parcela_minima
+
+                vezes = int(pedido.forma_pagamento.removeprefix("credit_").rstrip("x"))
+                parcela = dinheiro(pedido.total / vezes)
+                if vezes > 1 and parcela < parcela_minima(vezes):
+                    avisos.append(
+                        f"Pedido {pedido.id}: {vezes}x de R$ {parcela} fica abaixo do mínimo de R$ {parcela_minima(vezes)}"
+                    )
             if pedido.status in {"shipped", "delivered"} and not pedido.codigo_rastreio:
                 avisos.append(f"Pedido {pedido.id}: enviado sem código de rastreio")
 
