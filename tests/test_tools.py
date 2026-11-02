@@ -66,12 +66,33 @@ def test_pedido_nao_vaza_dados(ferramentas, pedido_id, contato):
     assert set(r) == {"erro"}
 
 
-def test_prazo_de_arrependimento():
-    dentro = Ferramentas(agora=momento(2025, 12, 28, 10, 0))
-    fora = Ferramentas(agora=momento(2025, 12, 30, 10, 0))
+def test_prazos_do_pedido_entregue():
+    # Pedido 4: compra em 10/12/2025, previsão de entrega em 22/12/2025.
     args = dict(pedido_id=4, email_ou_telefone="lucas.mendes@jmail.com")
-    assert chamar(dentro, "consultar_pedido", **args)["direito_de_arrependimento"]["dentro_do_prazo"] is True
-    assert chamar(fora, "consultar_pedido", **args)["direito_de_arrependimento"]["dentro_do_prazo"] is False
+    prazos = chamar(Ferramentas(agora=momento(2025, 12, 28, 10, 0)), "consultar_pedido", **args)["prazos"]
+    assert prazos["arrependimento"] == {"regra": "7 dias após o recebimento", "data_limite": "29/12/2025", "dentro_do_prazo": True}
+    assert prazos["troca_por_defeito_na_loja"]["data_limite"] == "09/01/2026"
+    assert prazos["garantia_legal"]["data_limite"] == "22/03/2026"
+
+    depois = chamar(Ferramentas(agora=momento(2026, 1, 15, 10, 0)), "consultar_pedido", **args)["prazos"]
+    assert not depois["arrependimento"]["dentro_do_prazo"]
+    assert not depois["troca_por_defeito_na_loja"]["dentro_do_prazo"]
+    assert depois["garantia_legal"]["dentro_do_prazo"]
+
+
+def test_pedido_nao_entregue_nao_tem_prazos(ferramentas):
+    r = chamar(ferramentas, "consultar_pedido", pedido_id=13, email_ou_telefone=_email_do_pedido(ferramentas, 13))
+    assert r["status"] == "aguardando pagamento" and "prazos" not in r
+
+
+def _email_do_pedido(f, pedido_id):
+    return f.loja.cliente_do_pedido(f.loja.pedidos[pedido_id]).email
+
+
+def test_busca_avisa_quantos_ficaram_de_fora(ferramentas):
+    r = chamar(ferramentas, "buscar_produtos", categoria="violões", preco_max=1000)
+    assert r["listados"] == 5
+    assert r["nao_listados"] == r["total_disponiveis"] - 5 > 0
 
 
 @pytest.mark.parametrize(

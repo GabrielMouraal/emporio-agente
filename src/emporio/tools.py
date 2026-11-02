@@ -22,8 +22,14 @@ from emporio.data import Loja, Pedido, Produto, normalizar, so_digitos
 from emporio.policies import consultar_politica, temas_disponiveis
 from emporio.pricing import cotar, dinheiro, formatar_brl, maximo_de_parcelas
 
-LIMITE_RESULTADOS = 8
-PRAZO_ARREPENDIMENTO_DIAS = 7
+# Em conversa de WhatsApp, mais de 5 opções vira parede de texto.
+# In a chat, more than 5 options becomes a wall of text.
+LIMITE_RESULTADOS = 5
+
+# Prazos da política (seções 4.1, 4.2 e 8.1). / Policy deadlines.
+PRAZO_ARREPENDIMENTO_DIAS = 7     # após o recebimento / after receipt
+PRAZO_TROCA_DEFEITO_DIAS = 30     # após a compra / after purchase
+PRAZO_GARANTIA_LEGAL_DIAS = 90    # após o recebimento / after receipt
 
 STATUS_PEDIDO = {
     "pending": "aguardando pagamento",
@@ -118,9 +124,14 @@ class Ferramentas:
         )
         disponiveis = [p for p in encontrados if p.disponivel]
         indisponiveis = [p for p in encontrados if not p.disponivel]
+        listados = disponiveis[:LIMITE_RESULTADOS]
         return {
             "total_disponiveis": len(disponiveis),
-            "produtos": [self._resumo(p) for p in disponiveis[:LIMITE_RESULTADOS]],
+            "listados": len(listados),
+            # Campo explícito: no primeiro teste real o modelo ignorou que havia mais opções.
+            # Explicit field: in the first real test the model hid the extra options.
+            "nao_listados": len(disponiveis) - len(listados),
+            "produtos": [self._resumo(p) for p in listados],
             # Mostrados para o agente poder explicar "esse saiu de linha", não para oferecer.
             # Shown so the agent can explain "that one is out", not to offer them.
             "indisponiveis": [
@@ -186,17 +197,28 @@ class Ferramentas:
         digitos = so_digitos(informado)
         return len(digitos) >= 8 and digitos[-8:] == so_digitos(cliente.telefone)[-8:]
 
-    def _prazo_arrependimento(self, pedido: Pedido) -> dict | None:
+    def _prazos(self, pedido: Pedido) -> dict | None:
+        """Prazos de devolução, troca e garantia de um pedido entregue, já calculados.
+        Return, exchange and warranty deadlines for a delivered order."""
         if pedido.status != "delivered" or pedido.previsao_entrega is None:
             return None
+        hoje = self._agora().date()
         # A base não tem a data real de recebimento; usamos a previsão de entrega.
         # The data has no actual delivery date; we use the estimated one.
-        limite = pedido.previsao_entrega + timedelta(days=PRAZO_ARREPENDIMENTO_DIAS)
-        hoje = self._agora().date()
+        recebimento = pedido.previsao_entrega
+
+        def prazo(base: date, dias: int, regra: str) -> dict:
+            limite = base + timedelta(days=dias)
+            return {"regra": regra, "data_limite": limite.strftime("%d/%m/%Y"), "dentro_do_prazo": hoje <= limite}
+
         return {
-            "dentro_do_prazo": hoje <= limite,
-            "data_limite_estimada": limite.strftime("%d/%m/%Y"),
-            "observacao": "calculado pela previsão de entrega; a data real de recebimento pode ser outra",
+            "arrependimento": prazo(recebimento, PRAZO_ARREPENDIMENTO_DIAS, "7 dias após o recebimento"),
+            "troca_por_defeito_na_loja": prazo(pedido.data, PRAZO_TROCA_DEFEITO_DIAS, "30 dias após a compra"),
+            "garantia_legal": prazo(recebimento, PRAZO_GARANTIA_LEGAL_DIAS, "90 dias após o recebimento"),
+            "observacao": (
+                "datas calculadas pela previsão de entrega, porque a data real de recebimento "
+                "não está registrada; depois desses prazos vale a garantia do fabricante"
+            ),
         }
 
     def consultar_pedido(self, pedido_id: int, email_ou_telefone: str) -> dict:
@@ -215,7 +237,7 @@ class Ferramentas:
         resposta: dict[str, Any] = {
             "pedido": pedido.id,
             "primeiro_nome": cliente.nome.split()[0],
-            "data": pedido.data.strftime("%d/%m/%Y"),
+            "data_da_compra": pedido.data.strftime("%d/%m/%Y"),
             "status": STATUS_PEDIDO.get(pedido.status, pedido.status),
             "itens": itens,
             "total": formatar_brl(dinheiro(pedido.total)),
@@ -224,11 +246,13 @@ class Ferramentas:
         if pedido.codigo_rastreio:
             resposta["codigo_rastreio"] = pedido.codigo_rastreio
         if pedido.previsao_entrega:
-            resposta["previsao_entrega"] = pedido.previsao_entrega.strftime("%d/%m/%Y")
+            # Nome explícito: o modelo chegou a tratar a data da compra como data de entrega.
+            # Explicit name: the model once read the purchase date as the delivery date.
+            resposta["previsao_de_entrega"] = pedido.previsao_entrega.strftime("%d/%m/%Y")
         if pedido.observacao:
             resposta["observacao"] = pedido.observacao
-        if (prazo := self._prazo_arrependimento(pedido)) is not None:
-            resposta["direito_de_arrependimento"] = prazo
+        if (prazos := self._prazos(pedido)) is not None:
+            resposta["prazos"] = prazos
         return resposta
 
     # ---- Políticas e loja / Policies and store ---------------------------------
