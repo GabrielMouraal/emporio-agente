@@ -51,6 +51,32 @@ HORARIO = {d: (time(9), time(18)) for d in range(5)} | {5: (time(9), time(13))}
 NOMES_DIAS = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
 
 
+def _opcoes_pos_venda(prazos: dict) -> list[str]:
+    """Traduz os prazos em opções concretas, com o texto da política.
+
+    No teste com o modelo real ele pulava a consulta da política e respondia de forma
+    vaga. Regra obrigatória não deve depender de o modelo lembrar de consultar.
+
+    Turns deadlines into concrete options using the policy text. With the real
+    model, it skipped the policy lookup; mandatory rules shouldn't depend on that.
+    """
+    opcoes = []
+    if prazos["arrependimento"]["dentro_do_prazo"]:
+        opcoes.append(
+            "devolução por arrependimento: produto na embalagem original, sem sinais de uso; "
+            "frete de devolução pago pela loja; reembolso na mesma forma de pagamento em até 10 dias úteis"
+        )
+    if prazos["troca_por_defeito_na_loja"]["dentro_do_prazo"]:
+        opcoes.append("troca por defeito de fabricação direto na loja")
+    elif prazos["garantia_legal"]["dentro_do_prazo"]:
+        opcoes.append("defeito de fabricação: coberto pela garantia legal de 90 dias")
+    opcoes.append(
+        "garantia do fabricante (em geral de 6 meses a 2 anos, conforme o certificado do produto); "
+        "a loja pode intermediar o acionamento"
+    )
+    return opcoes
+
+
 def _forma_pagamento(codigo: str) -> str:
     if codigo.startswith("credit_"):
         return f"cartão de crédito em {codigo.removeprefix('credit_')}"
@@ -211,10 +237,13 @@ class Ferramentas:
             limite = base + timedelta(days=dias)
             return {"regra": regra, "data_limite": limite.strftime("%d/%m/%Y"), "dentro_do_prazo": hoje <= limite}
 
-        return {
+        prazos = {
             "arrependimento": prazo(recebimento, PRAZO_ARREPENDIMENTO_DIAS, "7 dias após o recebimento"),
             "troca_por_defeito_na_loja": prazo(pedido.data, PRAZO_TROCA_DEFEITO_DIAS, "30 dias após a compra"),
             "garantia_legal": prazo(recebimento, PRAZO_GARANTIA_LEGAL_DIAS, "90 dias após o recebimento"),
+        }
+        return prazos | {
+            "o_que_ainda_vale": _opcoes_pos_venda(prazos),
             "observacao": (
                 "datas calculadas pela previsão de entrega, porque a data real de recebimento "
                 "não está registrada; depois desses prazos vale a garantia do fabricante"

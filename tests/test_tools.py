@@ -124,3 +124,15 @@ def test_erros_do_modelo_nao_derrubam(ferramentas):
 def test_toda_ferramenta_tem_schema(ferramentas):
     nomes = {s["function"]["name"] for s in schemas()}
     assert nomes == set(ferramentas._funcoes)
+
+
+def test_o_que_ainda_vale_muda_com_o_tempo():
+    args = dict(pedido_id=4, email_ou_telefone="lucas.mendes@jmail.com")
+
+    def opcoes(*quando):
+        return chamar(Ferramentas(agora=momento(*quando)), "consultar_pedido", **args)["prazos"]["o_que_ainda_vale"]
+
+    assert opcoes(2025, 12, 28, 10, 0)[0].startswith("devolução por arrependimento")
+    assert any("garantia legal" in o for o in opcoes(2026, 2, 1, 10, 0))
+    tarde = opcoes(2026, 11, 2, 10, 0)
+    assert len(tarde) == 1 and "fabricante" in tarde[0]

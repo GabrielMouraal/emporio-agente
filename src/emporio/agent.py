@@ -14,7 +14,8 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from datetime import datetime
+from typing import Any, Callable
 
 from openai import OpenAI, OpenAIError
 
@@ -55,11 +56,15 @@ class Agente:
         cliente: OpenAI | None = None,
         ferramentas: Ferramentas | None = None,
         modelo: str | None = None,
+        agora: Callable[[], datetime] = config.agora,
     ) -> None:
         # Cliente injetável: nos testes entra um cliente falso, sem rede e sem custo.
         # Injectable client: tests pass a fake one, no network, no cost.
         self.cliente = cliente or OpenAI()
-        self.ferramentas = ferramentas or Ferramentas()
+        # O mesmo relógio vale para o prompt e para as ferramentas; os exemplos fixam uma data.
+        # Same clock for prompt and tools; the example script pins a date.
+        self._agora = agora
+        self.ferramentas = ferramentas or Ferramentas(agora=agora)
         self.modelo = modelo or config.modelo()
         self.historico: list[dict[str, Any]] = []
 
@@ -67,7 +72,7 @@ class Agente:
         self.historico.clear()
 
     def _mensagens(self) -> list[dict[str, Any]]:
-        sistema = {"role": "system", "content": montar_prompt_sistema(config.agora())}
+        sistema = {"role": "system", "content": montar_prompt_sistema(self._agora())}
         return [sistema, *self.historico]
 
     def _aparar_historico(self) -> None:
